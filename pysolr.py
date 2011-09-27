@@ -263,9 +263,11 @@ class SolrError(Exception):
 
 
 class Results(object):
-    def __init__(self, docs, hits, highlighting=None, facets=None, spellcheck=None, stats=None, qtime=None, debug=None):
+    def __init__(self, docs, hits, grouped=None, total_hits=None, highlighting=None, facets=None, spellcheck=None, stats=None, qtime=None, debug=None):
         self.docs = docs
         self.hits = hits
+        self.grouped = grouped or {}
+        self.total_hits = total_hits if total_hits is not None else hits
         self.highlighting = highlighting or {}
         self.facets = facets or {}
         self.spellcheck = spellcheck or {}
@@ -563,6 +565,27 @@ class Solr(object):
         result = self.decoder.decode(response)
         result_kwargs = {}
 
+        if 'grouped' in result and result['grouped']:
+            # left for backward compatibility
+            docs = []
+            hits = 0
+            total_hits = 0
+            grouped = result['grouped']
+            for grouped_field, grouped_data in grouped.items():
+                total_hits += grouped_data['matches']
+                if 'ngroups' in grouped_data:
+                    hits += grouped_data['ngroups']
+                else:
+                    hits += total_hits
+                if 'groups' in grouped_data:
+                    for group in grouped_data['groups']:
+                        docs += group['doclist']['docs']
+            result_kwargs['grouped'] = grouped
+            result_kwargs['total_hits'] = total_hits
+        else:
+            docs = result['response']['docs']
+            hits = result['response']['numFound']
+
         if result.get('debug'):
             result_kwargs['debug'] = result['debug']
 
@@ -581,8 +604,8 @@ class Solr(object):
         if 'QTime' in result.get('responseHeader', {}):
             result_kwargs['qtime'] = result['responseHeader']['QTime']
 
-        self.log.debug("Found '%s' search results." % result['response']['numFound'])
-        return Results(result['response']['docs'], result['response']['numFound'], **result_kwargs)
+        self.log.debug("Found '%s' search results." % hits)
+        return Results(docs, hits, **result_kwargs)
 
     def more_like_this(self, q, mltfl, **kwargs):
         """
