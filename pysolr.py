@@ -615,8 +615,8 @@ class Solr(object):
         if 'QTime' in result.get('responseHeader', {}):
             result_kwargs['qtime'] = result['responseHeader']['QTime']
 
-        self.log.debug("Found '%s' search results.", result['response']['numFound'])
-        return Results(result['response']['docs'], result['response']['numFound'], **result_kwargs)
+        self.log.debug("Found '%s' search results.", hits)
+        return Results(docs, hits, **result_kwargs)
 
     def more_like_this(self, q, mltfl, **kwargs):
         """
